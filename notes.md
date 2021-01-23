@@ -1,4 +1,37 @@
-### Material Properties
+
+
+# Notes
+
+## To-do
+
+* [ ] finish objects
+
+  spheres and objects
+
+  ```c
+  typedef struct Object {
+  	int type; // swich type
+      Sphere sphere;
+      Triangle triangle;
+      
+      Material material;
+  } Object;
+  ```
+
+  * [ ] triangle intersections
+
+    link: https://www.scratchapixel.com/lessons/3d-basic-rendering/ray-tracing-rendering-a-triangle/ray-triangle-intersection-geometric-solution
+
+* [ ] more material properties
+
+  * [ ] rough
+  * [ ] refractive
+
+* [ ] optimisation
+
+## Structs
+
+### Material
 
 ```c
 typedef struct Material {
@@ -9,7 +42,6 @@ typedef struct Material {
 	float reflective;
 	float refractive;
 	float rough;
-
 } Material;
 ```
 
