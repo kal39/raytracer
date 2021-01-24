@@ -18,13 +18,13 @@
   } Object;
   ```
 
-  * [ ] triangle intersections
+  * [x] triangle intersections
 
     link: https://www.scratchapixel.com/lessons/3d-basic-rendering/ray-tracing-rendering-a-triangle/ray-triangle-intersection-geometric-solution
 
 * [ ] more material properties
 
-  * [ ] rough
+  * [x] rough
   * [ ] refractive
 
 * [ ] optimisation

@@ -65,12 +65,13 @@ Vec3f vec3f_mul_scalar(Vec3f a, float b) {
 }
 
 Vec3f vec3f_div_scalar(Vec3f a, float b) {
-	return (Vec3f){a.x / b, a.y / b, a.z / b};
+	float inv = 1 / b;
+	return (Vec3f){a.x * inv, a.y * inv, a.z * inv};
 }
 
 Vec3f vec3f_normalise(Vec3f a) {
-	float size = vec3f_size(a);
-	return (Vec3f){a.x / size, a.y / size, a.z / size};
+	float invSize = 1 / vec3f_size(a);
+	return (Vec3f){a.x * invSize, a.y * invSize, a.z * invSize};
 }
 
 float vec3f_dot(Vec3f a, Vec3f b) {
@@ -90,30 +91,27 @@ float vec3f_size(Vec3f a) {
 }
 
 Vec3f vec3f_rotate_x(Vec3f a, float angle) {
-	Vec3f b;
-	b.x = a.x;
-	b.y = a.y * cos(angle) - a.z * sin(angle);
-	b.z = a.y * sin(angle) + a.z * cos(angle);
-
-	return b;
+	return (Vec3f){
+		a.x,
+		a.y * cos(angle) - a.z * sin(angle),
+		a.y * sin(angle) + a.z * cos(angle)
+	};
 }
 
 Vec3f vec3f_rotate_y(Vec3f a, float angle) {
-	Vec3f b;
-	b.z = a.x * cos(angle) + a.z * sin(angle);
-	b.y = a.y;
-	b.z = -a.x * sin(angle) + a.z * cos(angle);
-
-	return b;
+	return (Vec3f){
+		a.x * cos(angle) + a.z * sin(angle),
+		a.y,
+		-a.x * sin(angle) + a.z * cos(angle)
+	};
 }
 
 Vec3f vec3f_rotate_z(Vec3f a, float angle) {
-	Vec3f b;
-	b.x = a.x * cos(angle) - a.y * sin(angle);
-	b.y = a.x * sin(angle) + a.y * cos(angle);
-	b.z = a.z;
-
-	return b;
+	return (Vec3f){
+		a.x * cos(angle) - a.y * sin(angle),
+		a.x * sin(angle) + a.y * cos(angle),
+		a.z
+	};
 }
 
 #endif

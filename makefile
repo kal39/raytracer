@@ -88,6 +88,7 @@ clean:
 	$(RM) gmon.out
 	$(RM) profile.dot
 	$(RM) profile.output
+	$(RM) *.ppm
 
 #------------------------------------------------------------------------------#
 # build process                                                                #

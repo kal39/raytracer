@@ -2,21 +2,21 @@
 #include <stdlib.h>
 #include <math.h>
 
-#define K_PPM_IMPLEMENTATION
-#include "k_ppm.h"
+#define K_IMAGE_IMPLEMENTATION
+#include "k_image.h"
 
 #define K_VECTOR_IMPLEMENTATION
 #include "k_vector.h"
 
 #define WIDTH 1000
-#define HEIGHT 500
+#define HEIGHT 1000
 
 #define PI 3.14159265358979323846
 #define FOV PI / 3
 
 #define MAX_DEPTH 5
 
-#define K_EPSILON 0.001
+#define EPSILON 0.001
 typedef struct Material {
 	Color diffuse;
 	float ambient;
@@ -115,7 +115,7 @@ void add_square(
 	add_triangle(scene, (Triangle){a, c, d, material});
 }
 
-int ray_sphere_intersect(Ray ray, Sphere sphere, float *distance) {
+int hit_sphere(Ray ray, Sphere sphere, float *distance) {
 	Vec3f oc = vec3f_sub(ray.origin, sphere.center);
 	float a = vec3f_dot(ray.direction, ray.direction);
 	float b = 2.0 * vec3f_dot(oc, ray.direction);
@@ -147,14 +147,14 @@ int ray_sphere_intersect(Ray ray, Sphere sphere, float *distance) {
 	return 1;
 }
 
-int ray_triangle_intersect(Ray ray, Triangle triangle, float *distance)  {
+int hit_triangle(Ray ray, Triangle triangle, float *distance)  {
 	Vec3f ab = vec3f_sub(triangle.b, triangle.a);
 	Vec3f ac = vec3f_sub(triangle.c, triangle.a);
 
 	Vec3f p = vec3f_cross(ac, ray.direction);
 	float det = vec3f_dot(ab, p);
 	
-	if(fabs(det) < K_EPSILON)
+	if(fabs(det) < EPSILON)
 		return 0;
 
 	Vec3f t = vec3f_sub(ray.origin, triangle.a);
@@ -213,7 +213,7 @@ Color cast_ray(Scene *scene, Ray ray, int depth) {
 
 		for(int i = 0; i < scene->sphereCount; i++) {
 			float currentDistance;
-			if(ray_sphere_intersect(ray, scene->spheres[i], &currentDistance)) {
+			if(hit_sphere(ray, scene->spheres[i], &currentDistance)) {
 				if(flag == -1 || currentDistance < distance) {
 					distance = currentDistance;
 					sphere = &scene->spheres[i];
@@ -224,7 +224,7 @@ Color cast_ray(Scene *scene, Ray ray, int depth) {
 
 		for(int i = 0; i < scene->triangleCount; i++) {
 			float currentDistance;
-			if(ray_triangle_intersect(ray, scene->triangles[i], &currentDistance)) {
+			if(hit_triangle(ray, scene->triangles[i], &currentDistance)) {
 				if(flag == -1 || currentDistance < distance) {
 					distance = currentDistance;
 					triangle = &scene->triangles[i];
@@ -235,22 +235,22 @@ Color cast_ray(Scene *scene, Ray ray, int depth) {
 
 		if(flag != -1) {
 			Material material;
-			Vec3f intersectPoint; 
+			Vec3f hitPoint; 
 			Vec3f normal;
 			
 			if(flag == 1) {
-				intersectPoint = vec3f_add(
+				hitPoint = vec3f_add(
 					ray.origin, vec3f_mul_scalar(ray.direction, distance)
 				);
 
 				normal = vec3f_normalise(
-					vec3f_sub(intersectPoint, sphere->center)
+					vec3f_sub(hitPoint, sphere->center)
 				);
 
 				material = sphere->material;
 
 			} else if(flag == 2) {
-				intersectPoint = vec3f_add(
+				hitPoint = vec3f_add(
 					ray.origin, vec3f_mul_scalar(ray.direction, distance)
 				);
 
@@ -268,7 +268,7 @@ Color cast_ray(Scene *scene, Ray ray, int depth) {
 			}
 
 			Ray reflection = (Ray){
-				vec3f_add(intersectPoint, vec3f_mul_scalar(normal, K_EPSILON)),
+				vec3f_add(hitPoint, vec3f_mul_scalar(normal, EPSILON)),
 				randomise_dir(
 					reflection_dir(ray.direction, normal), material.rough
 				)
@@ -281,20 +281,16 @@ Color cast_ray(Scene *scene, Ray ray, int depth) {
 
 			for(int j = 0; j < scene->lightCount; j++) {
 				Light light = scene->lights[j];
-				Ray intersectPointToLight = (Ray){
-					vec3f_add(intersectPoint, vec3f_mul_scalar(normal, K_EPSILON)),
-					vec3f_normalise(vec3f_sub(light.pos, intersectPoint))
+				Ray lightRay = (Ray){
+					vec3f_add(hitPoint, vec3f_mul_scalar(normal, EPSILON)),
+					vec3f_normalise(vec3f_sub(light.pos, hitPoint))
 				};
 
 				int intersect = 0;
 				
 				for(int k = 0; k < scene->sphereCount; k++) {
 					float d;
-					if(
-						ray_sphere_intersect(
-							intersectPointToLight, scene->spheres[k], &d
-						)
-					) {
+					if(hit_sphere(lightRay, scene->spheres[k], &d)) {
 						if(d > 0) {
 							intersect = 1;
 							break;
@@ -302,73 +298,57 @@ Color cast_ray(Scene *scene, Ray ray, int depth) {
 					}
 				}
 				
-				for(int k = 0; k < scene->triangleCount; k++) {
-					float d;
-					if(
-						ray_triangle_intersect(
-							intersectPointToLight, scene->triangles[k], &d
-						)
-					) {
-						if(d > 0) {
-							intersect = 1;
-							break;
+				if(!intersect) {
+					for(int k = 0; k < scene->triangleCount; k++) {
+						float d;
+						if(hit_triangle(lightRay, scene->triangles[k], &d)) {
+							if(d > 0) {
+								intersect = 1;
+								break;
+							}
 						}
 					}
 				}
 
 				if(!intersect) {
-					
 					// diffuse lighting
 					Vec3f lightDirection = vec3f_normalise(
-						vec3f_sub(light.pos, intersectPoint)
+						vec3f_sub(light.pos, hitPoint)
 					);
 					float diffuseDot = vec3f_dot(normal, lightDirection);
 
-					if(diffuseDot > 0)
+					if(diffuseDot > 0) {
 						diffuseLightStrength += light.strength * diffuseDot;
-					
-					// specular lighting
-					Vec3f lightReflectionDir = reflection_dir(
-						lightDirection, normal
-					);
-					float specularDot = vec3f_dot(
-						lightReflectionDir, ray.direction
-					);
 
-					if(specularDot > 0)
+						// specular lighting
+						Vec3f lightReflectionDir = reflection_dir(
+							lightDirection, normal
+						);
+						float specularDot = vec3f_dot(
+							lightReflectionDir, ray.direction
+						);
+
 						specularLightStrength
 							+= light.strength
 							* powf(specularDot, material.specularExp);
+					}
 				}
-				
 			}
 
-			float ambientStrength = 1 - material.ambient;
-
-			color.r
-				= material.diffuse.r * ambientStrength * diffuseLightStrength
-				+ material.specular * specularLightStrength
-				+ material.reflective * reflectionColor.r;
-			color.g
-				= material.diffuse.g * ambientStrength * diffuseLightStrength
-				+ material.specular * specularLightStrength
-				+ material.reflective * reflectionColor.g;
-			color.b
-				= material.diffuse.b * ambientStrength * diffuseLightStrength
-				+ material.specular * specularLightStrength
-				+ material.reflective * reflectionColor.b;
-			
-			if(color.r > 1)
-				color.r = 1;
-
-			if(color.g > 1)
-				color.g = 1;
-
-			if(color.b > 1)
-				color.b = 1;
-
+			color = color_add(
+				color_add_scalar(
+					color_mul_scalar(
+						color_mul_scalar(
+							material.diffuse,
+							1 - material.ambient
+						),
+						diffuseLightStrength
+					),
+					material.specular * specularLightStrength
+				),
+				color_mul_scalar(reflectionColor, material.reflective)
+			);
 		}
-
 	}
 
 	return color;
@@ -378,8 +358,8 @@ void render(Scene *scene, Image *image) {
 	float aspectRatio = (float)image->width / (float)image->height;
 	float tanFOV = tan(FOV / 2);
 
-	for(int i = 0; i < (int)image->height; i++) {
-		for(int j = 0; j < (int)image->width; j++) {
+	for(unsigned int i = 0; i < image->height; i++) {
+		for(unsigned int j = 0; j < image->width; j++) {
 			float x = (2 * (j + 0.5) / image->width - 1) * tanFOV * aspectRatio;
 			float y = - (2 * (i + 0.5) / image->height - 1) * tanFOV;
 			Vec3f dir = vec3f_normalise((Vec3f){x, y, -1});
@@ -389,7 +369,11 @@ void render(Scene *scene, Image *image) {
 				scene, (Ray){(Vec3f){0, 0, 0}, dir}, 0
 			);
 		}
+
+		printf("\r%d/%d lines (%f%%)", i, image->height, (float)i / (float)image->height * 100);
+		fflush(stdout);
 	}
+	printf("\r%d/%d lines (%f%%)\n", image->height, image->height, (float)100);
 }
 
 int main(void) {
@@ -419,16 +403,6 @@ int main(void) {
 	render(scene, image);
 
 	destroy_scene(scene);
-
-	/*
-	Image *aaImage = antialias_image(image, 4);
-
-	destroy_image(image);
-
-	write_image(aaImage, "test.ppm");
-
-	destroy_image(aaImage);
-	*/
 
 	write_image(image, "test.ppm");
 
