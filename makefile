@@ -31,7 +31,7 @@
 BIN := voxel_renderer
 
 # libraries 
-LIBS := -lm -lSDL2 -lSDL2_gfx
+LIBS := -lm
 
 # flags 
 FLAGS := -Wall -Wextra
