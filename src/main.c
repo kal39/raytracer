@@ -3,6 +3,7 @@
 #include <math.h>
 #include <pthread.h>
 #include <sys/time.h>
+#include <sys/types.h>
 
 #define K_IMAGE_IMPLEMENTATION
 #include "k_image.h"
@@ -10,13 +11,13 @@
 #define K_VECTOR_IMPLEMENTATION
 #include "k_vector.h"
 
-#define WIDTH 2000
-#define HEIGHT 2000
+#define WIDTH 3840
+#define HEIGHT 2160
 
 #define PI 3.14159265358979323846
 #define FOV PI / 3
 
-#define MAX_DEPTH 8
+#define MAX_DEPTH 10
 
 #define EPSILON 0.001
 typedef struct Material {
@@ -25,8 +26,6 @@ typedef struct Material {
 	float specular;
 	float specularExp;
 	float reflective;
-	float refractive;
-	float rough;
 
 } Material;
 
@@ -42,6 +41,14 @@ typedef struct Triangle {
 	Vec3f c;
 	Material material;
 } Triangle;
+
+typedef struct Square {
+	Vec3f a;
+	Vec3f b;
+	Vec3f c;
+	Vec3f d;
+	Material material;
+} Square;
 
 typedef struct Ray {
 	Vec3f origin;
@@ -118,11 +125,9 @@ void add_triangle(Scene *scene, Triangle triangle) {
 	scene->triangles[scene->triangleCount - 1] = triangle;
 }
 
-void add_square(
-	Scene *scene, Vec3f a, Vec3f b, Vec3f c, Vec3f d, Material material
-) {
-	add_triangle(scene, (Triangle){a, b, c, material});
-	add_triangle(scene, (Triangle){a, c, d, material});
+void add_square(Scene *scene, Square square) {
+	add_triangle(scene, (Triangle){square.a, square.b, square.c, square.material});
+	add_triangle(scene, (Triangle){square.a, square.c, square.d, square.material});
 }
 
 int hit_sphere(Ray ray, Sphere sphere, float *distance) {
@@ -279,9 +284,7 @@ Color cast_ray(Scene *scene, Ray ray, int depth) {
 
 			Ray reflection = (Ray){
 				vec3f_add(hitPoint, vec3f_mul_scalar(normal, EPSILON)),
-				randomise_dir(
-					reflection_dir(ray.direction, normal), material.rough
-				)
+				reflection_dir(ray.direction, normal)
 			};
 
 			Color reflectionColor = cast_ray(scene, reflection, depth + 1);
@@ -416,18 +419,18 @@ int main(void) {
 
 	Scene *scene = init_scene((Color){0.5, 0.5, 1});
 
-	Material mirror = (Material){(Color){0, 0, 0}, 0.1, 1, 40, 0.7, 0, 0};
-	Material shinyRed = (Material){(Color){1, 0, 0}, 0.1, 1, 20, 0.2, 0, 0};
-	Material shinyBlue = (Material){(Color){0, 0, 1}, 0.1, 1, 20, 0.2, 0, 0};
-	Material dullRed = (Material){(Color){1, 0, 0}, 0.1, 1, 20, 0.01, 0, 0};
-	Material green = (Material){(Color){0, 1, 0}, 0.1, 1, 40, 0.01, 0, 0};
+	Material mirror = (Material){(Color){0, 0, 0}, 0.1, 1, 40, 0.7};
+	Material shinyRed = (Material){(Color){1, 0, 0}, 0.1, 1, 20, 0.2};
+	Material shinyBlue = (Material){(Color){0, 0, 1}, 0.1, 1, 20, 0.2};
+	Material dullRed = (Material){(Color){1, 0, 0}, 0.1, 1, 20, 0.01};
+	Material green = (Material){(Color){0, 1, 0}, 0.1, 1, 40, 0.01};
 
 	add_sphere(scene, (Sphere){(Vec3f){1, 0, -9}, 1, mirror});
 	add_sphere(scene, (Sphere){(Vec3f){-1, 0, -10}, 0.5, dullRed});
 	add_sphere(scene, (Sphere){(Vec3f){-1, -1, -6}, 0.5, green});
 
-	add_square(scene, (Vec3f){4, -2, -4}, (Vec3f){4, -2, -12}, (Vec3f){-4, -2, -12}, (Vec3f){-4, -2, -4}, shinyRed);
-	add_square(scene, (Vec3f){4, -2, -12}, (Vec3f){4, 4, -12}, (Vec3f){-4, 4, -12}, (Vec3f){-4, -2, -12}, shinyBlue);
+	add_square(scene, (Square){(Vec3f){4, -2, -4}, (Vec3f){4, -2, -12}, (Vec3f){-4, -2, -12}, (Vec3f){-4, -2, -4}, shinyRed});
+	add_square(scene, (Square){(Vec3f){4, -2, -12}, (Vec3f){4, 4, -12}, (Vec3f){-4, 4, -12}, (Vec3f){-4, -2, -12}, shinyBlue});
 
 	add_triangle(scene, (Triangle){(Vec3f){4, 2, -8.5}, (Vec3f){2, 2, -11.5}, (Vec3f){2, 4, -8.5}, mirror});
 	
