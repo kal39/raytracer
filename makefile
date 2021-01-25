@@ -28,10 +28,10 @@
 #------------------------------------------------------------------------------#
 
 # binary name 
-BIN := voxel_renderer
+BIN := raytracer
 
 # libraries 
-LIBS := -lm
+LIBS := -lm -lpthread
 
 # flags 
 FLAGS := -Wall -Wextra

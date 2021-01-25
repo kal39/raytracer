@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <pthread.h>
+#include <sys/time.h>
 
 #define K_IMAGE_IMPLEMENTATION
 #include "k_image.h"
@@ -8,13 +10,13 @@
 #define K_VECTOR_IMPLEMENTATION
 #include "k_vector.h"
 
-#define WIDTH 1000
-#define HEIGHT 1000
+#define WIDTH 2000
+#define HEIGHT 2000
 
 #define PI 3.14159265358979323846
 #define FOV PI / 3
 
-#define MAX_DEPTH 5
+#define MAX_DEPTH 8
 
 #define EPSILON 0.001
 typedef struct Material {
@@ -64,6 +66,14 @@ typedef struct Scene {
 	int triangleCount;
 
 } Scene;
+
+typedef struct ThreadArgs {
+	Scene *scene;
+	Image *image;
+	int row;
+	float aspectRatio;
+	float tanFOV;
+} ThreadArgs;
 
 Scene *init_scene(Color bgColor) {
 	Scene *scene = malloc(sizeof(Scene));
@@ -354,35 +364,59 @@ Color cast_ray(Scene *scene, Ray ray, int depth) {
 	return color;
 }
 
+void *render_routine(void *args) {
+	ThreadArgs *thread_args = (ThreadArgs*)args;
+	Scene *scene = thread_args->scene;
+	Image *image = thread_args->image;
+	int row = thread_args->row;
+	float aspectRatio = thread_args->aspectRatio;
+	float tanFOV = thread_args->tanFOV;
+
+	float y = - (2 * (row + 0.5) / image->height - 1) * tanFOV;
+
+	for(unsigned int column = 0; column < image->width; column++) {
+		float x = (2 * (column + 0.5) / image->width - 1) * tanFOV * aspectRatio;
+		Vec3f dir = vec3f_normalise((Vec3f){x, y, -1});
+
+		image->data[column + row * image->width] = cast_ray(
+			scene, (Ray){(Vec3f){0, 0, 0}, dir}, 0
+		);
+	}
+
+	return NULL;
+}
+
 void render(Scene *scene, Image *image) {
 	float aspectRatio = (float)image->width / (float)image->height;
 	float tanFOV = tan(FOV / 2);
 
+	pthread_t *threads = malloc(sizeof(pthread_t) * image->height);
+	ThreadArgs *args = malloc(sizeof(ThreadArgs) * image->height);
+
+	// prepare arguments
 	for(unsigned int i = 0; i < image->height; i++) {
-		for(unsigned int j = 0; j < image->width; j++) {
-			float x = (2 * (j + 0.5) / image->width - 1) * tanFOV * aspectRatio;
-			float y = - (2 * (i + 0.5) / image->height - 1) * tanFOV;
-			Vec3f dir = vec3f_normalise((Vec3f){x, y, -1});
-			// Ray ray = (Ray){(Vec3f){0, 0, 0}, dir};
-
-			image->data[j + i * image->width] = cast_ray(
-				scene, (Ray){(Vec3f){0, 0, 0}, dir}, 0
-			);
-		}
-
-		printf("\r%d/%d lines (%f%%)", i, image->height, (float)i / (float)image->height * 100);
-		fflush(stdout);
+		args[i] = (ThreadArgs){scene, image, i, aspectRatio, tanFOV};
 	}
-	printf("\r%d/%d lines (%f%%)\n", image->height, image->height, (float)100);
+
+	// start threads
+	for(unsigned int i = 0; i < image->height; i++) {
+		pthread_create(&threads[i], NULL, &render_routine, (void*)&args[i]);
+	}
+
+	// wait for threads
+	for(unsigned int i = 0; i < image->height; i++) {
+		pthread_join(threads[i], NULL);
+	}
 }
 
 int main(void) {
+	struct timeval A, B;
+
 	Image *image = create_image(WIDTH, HEIGHT, (Color){0, 0, 0});
 
 	Scene *scene = init_scene((Color){0.5, 0.5, 1});
 
 	Material mirror = (Material){(Color){0, 0, 0}, 0.1, 1, 40, 0.7, 0, 0};
-	// Material fuzzyMirror = (Material){(Color){0, 0, 0}, 0.1, 1, 40, 0.8, 0, 0.03};
 	Material shinyRed = (Material){(Color){1, 0, 0}, 0.1, 1, 20, 0.2, 0, 0};
 	Material shinyBlue = (Material){(Color){0, 0, 1}, 0.1, 1, 20, 0.2, 0, 0};
 	Material dullRed = (Material){(Color){1, 0, 0}, 0.1, 1, 20, 0.01, 0, 0};
@@ -400,12 +434,23 @@ int main(void) {
 	add_light(scene, (Light){(Vec3f){-2, 5, -6}, 1});
 	add_light(scene, (Light){(Vec3f){2, 5, -6}, 0.5});
 
+	printf("rendering...\n");
+
+	gettimeofday(&A, NULL);
+
 	render(scene, image);
 
-	destroy_scene(scene);
+	gettimeofday(&B, NULL);
+
+	printf("done\n");
+
+	printf("writing...\n");
 
 	write_image(image, "test.ppm");
 
+	printf("done (%f[s])\n", (float)(B.tv_sec - A.tv_sec) + (float)(B.tv_usec - A.tv_usec) / 1000000);
+
+	destroy_scene(scene);
 	destroy_image(image);
 
 	return(0);
