@@ -6,11 +6,12 @@
 #include <sys/types.h>
 
 #define K_IMAGE_IMPLEMENTATION
-#include "k_image.h"
+#include "../include/k_image.h"
 
 #define K_VECTOR_IMPLEMENTATION
-#include "k_vector.h"
+#include "../include/k_vector.h"
 
+// 4k
 #define WIDTH 3840
 #define HEIGHT 2160
 
